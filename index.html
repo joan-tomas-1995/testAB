@@ -62,196 +62,160 @@
         background-color: #0056b3;
       }
     </style>
-    <script>
+    script>
+    // Ocultar la página inicialmente
+    !function () {
+    var style = document.createElement('style');
+    style.type = 'text/css';
+    style.id = 'testab-hide-style';
+    style.innerHTML = 'body {opacity: 0 !important;}';
+    document.head.appendChild(style);
 
-      // Inicializar SDK
-      window.TestAB = {
-        experiments: [],
-        visitorId: '571acf10-e61f-4d86-98ec-1bc79740aec0',
-        debug: true,
-        supabaseUrl: 'https://aynriqgxrddbxrwlxqlu.supabase.co',
-        supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5bnJpcWd4cmRkYnhyd2x4cWx1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTM1OTAsImV4cCI6MjA2MTYyOTU5MH0.PiWqRIsART84mavWoG944qfb82JEyXbAFN2huR-sK40',
-        apiKey: '571acf10-e61f-4d86-98ec-1bc79740aec0',
+    // Función para mostrar la página
+    window.testabShow = function () {
+    var style = document.getElementById('testab-hide-style');
+    if (style) {
+    style.parentNode.removeChild(style);
+    document.body.style.opacity = '';
+    }
+    };
 
-        init: function () {
-          console.log('Inicializando SDK con config:', {
-            apiKey: this.apiKey,
-            supabaseUrl: this.supabaseUrl,
-            supabaseKey: this.supabaseKey
-          });
+    // Mostrar la página después de 2 segundos como máximo
+    setTimeout(window.testabShow, 2000);
+    }();
 
-          // Ocultar la página inicialmente
-          document.body.style.opacity = '0';
+    // SDK simplificado
+    window.TestAB = {
+    experiments: [],
+    visitorId: '571acf10-e61f-4d86-98ec-1bc79740aec0',
+    debug: true,
+    supabaseUrl: 'https://aynriqgxrddbxrwlxqlu.supabase.co',
+    supabaseKey:
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5bnJpcWd4cmRkYnhyd2x4cWx1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTM1OTAsImV4cCI6MjA2MTYyOTU5MH0.PiWqRIsART84mavWoG944qfb82JEyXbAFN2huR-sK40',
+    apiKey: '571acf10-e61f-4d86-98ec-1bc79740aec0',
 
-          // Cargar experimentos
-          this.loadExperiments();
-        },
+    init: function () {
+    console.log('Inicializando SDK con config:', {
+    apiKey: this.apiKey,
+    supabaseUrl: this.supabaseUrl,
+    supabaseKey: this.supabaseKey
+    });
 
-        // Cargar experimentos activos
-        loadExperiments: async function () {
-          console.log('Cargando experimentos...');
-          try {
-            const response = await fetch(
-              this.supabaseUrl + '/rest/v1/experiments?select=*&status=eq.running',
-              {
-                headers: {
-                  'apikey': this.supabaseKey,
-                  'Authorization': 'Bearer ' + this.supabaseKey
-                }
-              }
-            );
+    // Cargar experimentos
+    this.loadExperiments();
+    },
 
-            console.log('Respuesta de experimentos:', response);
+    loadExperiments: async function () {
+    console.log('Cargando experimentos...');
+    try {
+    const response = await fetch(
+    this.supabaseUrl + '/rest/v1/experiments?select=*&status=eq.running',
+    {
+    headers: {
+    'apikey': this.supabaseKey,
+    'Authorization': 'Bearer ' + this.supabaseKey
+    }
+    }
+    );
 
-            if (!response.ok) {
-              throw new Error('Error en la respuesta de la API');
-            }
+    console.log('Respuesta de experimentos:', response);
 
-            const data = await response.json();
-            console.log('Datos de experimentos:', data);
+    if (!response.ok) {
+    throw new Error('Error en la respuesta de la API');
+    }
 
-            if (!Array.isArray(data)) {
-              console.warn('No se encontraron experimentos activos');
-              window.testabShow();
-              return;
-            }
+    const data = await response.json();
+    console.log('Datos de experimentos:', data);
 
-            // Mapear los campos de snake_case a camelCase
-            const experiments = data.map(exp => ({
-              ...exp,
-              targetUrl: exp.target_url,
-              trafficAllocation: exp.traffic_allocation,
-              variants: exp.variants || []
-            }));
+    if (!Array.isArray(data)) {
+    console.warn('No se encontraron experimentos activos');
+    window.testabShow();
+    return;
+    }
 
-            // Guardar experimentos
-            this.experiments = experiments;
+    // Mapear los campos de snake_case a camelCase
+    const experiments = data.map(exp => ({
+    ...exp,
+    targetUrl: exp.target_url,
+    trafficAllocation: exp.traffic_allocation,
+    variants: exp.variants || []
+    }));
 
-            // Aplicar cada experimento
-            experiments.forEach(experiment => {
-              if (this.shouldApplyExperiment(experiment)) {
-                this.applyExperiment(experiment);
-              }
-            });
+    // Guardar experimentos
+    this.experiments = experiments;
 
-            window.testabShow();
-          } catch (error) {
-            console.error('Error cargando experimentos:', error);
-            window.testabShow();
-          }
-        },
+    // Aplicar cada experimento
+    experiments.forEach(experiment => {
+    if (this.shouldApplyExperiment(experiment)) {
+    this.applyExperiment(experiment);
+    }
+    });
 
-        // Verificar si el experimento debe aplicarse
-        shouldApplyExperiment: function (experiment) {
-          if (!experiment) return false;
+    window.testabShow();
+    } catch (error) {
+    console.error('Error cargando experimentos:', error);
+    window.testabShow();
+    }
+    },
 
-          // Verificar URL
-          if (experiment.targetUrl && !window.location.href.includes(experiment.targetUrl)) {
-            return false;
-          }
+    shouldApplyExperiment: function (experiment) {
+    if (!experiment) return false;
 
-          // Verificar asignación de tráfico
-          if (Math.random() * 100 > experiment.trafficAllocation) {
-            return false;
-          }
+    // Verificar URL
+    if (experiment.targetUrl && !window.location.href.includes(experiment.targetUrl)) {
+    return false;
+    }
 
-          return true;
-        },
+    // Verificar asignación de tráfico
+    if (Math.random() * 100 > experiment.trafficAllocation) {
+    return false;
+    }
 
-        // Aplicar un experimento
-        applyExperiment: function (experiment) {
-          if (!experiment || !experiment.variants) return;
+    return true;
+    },
 
-          const variant = this.getVariant(experiment);
+    applyExperiment: function (experiment) {
+    if (!experiment || !experiment.variants) return;
 
-          if (variant && variant.changes) {
-            variant.changes.forEach(change => {
-              const elements = document.querySelectorAll(change.selector);
-              elements.forEach(element => {
-                if (change.type === 'hide') {
-                  element.style.display = 'none';
-                } else if (change.type === 'show') {
-                  element.style.display = '';
-                } else if (change.type === 'modify' && change.value) {
-                  element.style[change.selector] = change.value;
-                }
-              });
-            });
-          }
-        },
+    const variant = this.getVariant(experiment);
 
-        // Obtener variante para un experimento
-        getVariant: function (experiment) {
-          if (!experiment || !experiment.variants || !Array.isArray(experiment.variants)) {
-            return null;
-          }
+    if (variant && variant.changes) {
+    variant.changes.forEach(change => {
+    const elements = document.querySelectorAll(change.selector);
+    elements.forEach(element => {
+    if (change.type === 'hide') {
+    element.style.display = 'none';
+    } else if (change.type === 'show') {
+    element.style.display = '';
+    } else if (change.type === 'modify' && change.value) {
+    element.style[change.selector] = change.value;
+    }
+    });
+    });
+    }
+    },
 
-          const hash = this.hashString(this.visitorId + experiment.id);
-          const totalWeight = experiment.variants.reduce((sum, v) => sum + v.traffic, 0);
-          let weightSum = 0;
+    getVariant: function (experiment) {
+    if (!experiment || !experiment.variants || !Array.isArray(experiment.variants)) {
+    return null;
+    }
 
-          for (const variant of experiment.variants) {
-            weightSum += variant.traffic;
-            if (hash % totalWeight < weightSum) {
-              return variant;
-            }
-          }
+    const hash = this.hashString(this.visitorId + experiment.id);
+    const totalWeight = experiment.variants.reduce((sum, v) => sum + v.traffic, 0);
+    let weightSum = 0;
 
-          return experiment.variants[0];
-        },
-
-        // Rastrear eventos
-        track: async function (eventName, properties = {}) {
-          const event = {
-            name: eventName,
-            properties: {
-              ...properties,
-              visitorId: this.visitorId,
-              userId: this.apiKey,
-              timestamp: new Date().toISOString(),
-              url: window.location.href
-            }
-          };
-
-          if (this.debug) {
-            console.log('Evento registrado:', event);
-          }
-
-          try {
-            const response = await fetch(this.supabaseUrl + '/rest/v1/events', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': this.supabaseKey,
-                'Authorization': 'Bearer ' + this.supabaseKey
-              },
-              body: JSON.stringify(event)
-            });
-
-            if (!response.ok) {
-              throw new Error('Error al guardar el evento');
-            }
-          } catch (error) {
-            console.error('Error guardando evento:', error);
-          }
-        },
-
-        // Función auxiliar para hash
-        hashString: function (str) {
-          let hash = 0;
-          for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-          }
-          return Math.abs(hash);
-        }
-      };
-
-      // Inicializar SDK
-      window.TestAB.init();
-
-    </script>
+    for (const variant of experiment.variants) {
+    weightSum += variant.traffic;
+    if (hash % totalWeight < weightSum) { return variant; } } return experiment.variants[0]; }, track: async function
+      (eventName, properties={}) { const event={ name: eventName, properties: { ...properties, visitorId:
+      this.visitorId, userId: this.apiKey, timestamp: new Date().toISOString(), url: window.location.href } }; if
+      (this.debug) { console.log('Evento registrado:', event); } try { const response=await fetch(this.supabaseUrl
+      + '/rest/v1/events' , { method: 'POST' , headers: { 'Content-Type' : 'application/json' , 'apikey' :
+      this.supabaseKey, 'Authorization' : 'Bearer ' + this.supabaseKey }, body: JSON.stringify(event) }); if
+      (!response.ok) { throw new Error('Error al guardar el evento'); } } catch (error) { console.error('Error guardando
+      evento:', error); } }, hashString: function (str) { let hash=0; for (let i=0; i < str.length; i++) { const
+      char=str.charCodeAt(i); hash=((hash << 5) - hash) + char; hash=hash & hash; } return Math.abs(hash); } }; //
+      Inicializar SDK window.TestAB.init(); </script>
 
 
 
