@@ -64,15 +64,71 @@
     </style>
     <script src="testab-sdk.js"></script>
     <script>
-      (function (w, d, s, o, f, js, fjs) {
+      // Ocultar la página inicialmente
+      !function () {
+        var style = document.createElement('style');
+        style.type = 'text/css';
+        style.id = 'testab-hide-style';
+        style.innerHTML = 'body {opacity: 0 !important;}';
+        document.head.appendChild(style);
+
+        // Función para mostrar la página
+        window.testabShow = function () {
+          var style = document.getElementById('testab-hide-style');
+          if (style) {
+            style.parentNode.removeChild(style);
+            document.body.style.opacity = '';
+          }
+        };
+
+        // Mostrar la página después de 2 segundos como máximo
+        setTimeout(window.testabShow, 2000);
+      }();
+
+      // Cargar el SDK
+      !function (w, d, s, o, f, js, fjs) {
         w['TestAB'] = o; w[o] = w[o] || function () { (w[o].q = w[o].q || []).push(arguments) };
         w[o].l = 1 * new Date(); js = d.createElement(s); fjs = d.getElementsByTagName(s)[0];
         js.async = 1; js.src = f; js.id = o; fjs.parentNode.insertBefore(js, fjs);
-      }(window, document, 'script', 'testab', 'testab.min.js'));
+      }(window, document, 'script', 'testab', 'https://joan-tomas-1995.github.io/testAB/testab.min.js');
 
-      testab('init', '571acf10-e61f-4d86-98ec-1bc79740aec0');
-      testab('pageview');
+      // Inicializar el SDK
+      testab('init', {
+        apiKey: '571acf10-e61f-4d86-98ec-1bc79740aec0',
+        endpoint: 'https://joan-tomas-1995.github.io/testAB/api',
+        onReady: function () {
+          // Cargar experimentos activos
+          fetch('https://joan-tomas-1995.github.io/testAB/api/experiments?apiKey=571acf10-e61f-4d86-98ec-1bc79740aec0')
+            .then(response => response.json())
+            .then(experiments => {
+              // Aplicar cada experimento
+              experiments.forEach(experiment => {
+                const variant = testab('getVariant', experiment.id);
+
+                // Aplicar cambios según la variante
+                if (variant && experiment.elements) {
+                  Object.entries(experiment.elements).forEach(([selector, styles]) => {
+                    const elements = document.querySelectorAll(selector);
+                    elements.forEach(element => {
+                      Object.entries(styles[variant.type]).forEach(([property, value]) => {
+                        element.style[property] = value;
+                      });
+                    });
+                  });
+                }
+              });
+
+              // Mostrar la página cuando todo esté listo
+              window.testabShow();
+            })
+            .catch(error => {
+              console.error('Error cargando experimentos:', error);
+              window.testabShow(); // Mostrar la página de todos modos
+            });
+        }
+      });
     </script>
+
   </head>
 
   <body>
