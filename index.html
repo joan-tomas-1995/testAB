@@ -62,206 +62,196 @@
         background-color: #0056b3;
       }
     </style>
-<script>
-  // Ocultar la página inicialmente
-  !function () {
-    var style = document.createElement('style');
-    style.type = 'text/css';
-    style.id = 'testab-hide-style';
-    style.innerHTML = 'body {opacity: 0 !important;}';
-    document.head.appendChild(style);
+    <script>
 
-    // Función para mostrar la página
-    window.testabShow = function () {
-      var style = document.getElementById('testab-hide-style');
-      if (style) {
-        style.parentNode.removeChild(style);
-        document.body.style.opacity = '';
-      }
-    };
+      // Inicializar SDK
+      window.TestAB = {
+        experiments: [],
+        visitorId: '571acf10-e61f-4d86-98ec-1bc79740aec0',
+        debug: true,
+        supabaseUrl: 'https://aynriqgxrddbxrwlxqlu.supabase.co',
+        supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5bnJpcWd4cmRkYnhyd2x4cWx1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTM1OTAsImV4cCI6MjA2MTYyOTU5MH0.PiWqRIsART84mavWoG944qfb82JEyXbAFN2huR-sK40',
+        apiKey: '571acf10-e61f-4d86-98ec-1bc79740aec0',
 
-    // Mostrar la página después de 2 segundos como máximo
-    setTimeout(window.testabShow, 2000);
-  }();
-
-  // SDK simplificado
-  window.TestAB = {
-    experiments: {},
-    visitorId: Math.random().toString(36).substring(2),
-    debug: true,
-    supabaseUrl: 'https://aynriqgxrddbxrwlxqlu.supabase.co',
-    supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5bnJpcWd4cmRkYnhyd2x4cWx1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTM1OTAsImV4cCI6MjA2MTYyOTU5MH0.PiWqRIsART84mavWoG944qfb82JEyXbAFN2huR-sK40',
-
-    // Inicializar el SDK
-    init: function (config) {
-      console.log('Inicializando SDK con config:', config);
-      this.apiKey = config.apiKey;
-      this.loadExperiments();
-    },
-
-    // Cargar experimentos activos
-    loadExperiments: async function () {
-      console.log('Cargando experimentos...');
-      try {
-        const response = await fetch(
-          this.supabaseUrl + '/rest/v1/experiments?select=*&status=eq.running',
-          {
-            headers: {
-              'apikey': this.supabaseKey,
-              'Authorization': 'Bearer ' + this.supabaseKey
-            }
-          }
-        );
-
-        console.log('Respuesta de experimentos:', response);
-
-        if (!response.ok) {
-          throw new Error('Error en la respuesta de la API');
-        }
-
-        const { data: experiments, error } = await response.json();
-        console.log('Experimentos cargados:', experiments);
-        console.log('Error:', error);
-
-        if (error) {
-          throw error;
-        }
-
-        if (!Array.isArray(experiments)) {
-          console.warn('No se encontraron experimentos activos');
-          window.testabShow();
-          return;
-        }
-
-        // Guardar experimentos
-        this.experiments = experiments;
-
-        // Aplicar cada experimento
-        experiments.forEach(experiment => {
-          if (this.shouldApplyExperiment(experiment)) {
-            this.applyExperiment(experiment);
-          }
-        });
-
-        window.testabShow();
-      } catch (error) {
-        console.error('Error cargando experimentos:', error);
-        window.testabShow();
-      }
-    },
-
-    // Verificar si el experimento debe aplicarse
-    shouldApplyExperiment: function (experiment) {
-      if (!experiment) return false;
-
-      // Verificar URL
-      if (experiment.targetUrl && !window.location.href.includes(experiment.targetUrl)) {
-        return false;
-      }
-
-      // Verificar asignación de tráfico
-      if (Math.random() * 100 > experiment.trafficAllocation) {
-        return false;
-      }
-
-      return true;
-    },
-
-    // Aplicar un experimento
-    applyExperiment: function (experiment) {
-      if (!experiment || !experiment.variants) return;
-
-      const variant = this.getVariant(experiment);
-
-      if (variant && variant.changes) {
-        variant.changes.forEach(change => {
-          const elements = document.querySelectorAll(change.selector);
-          elements.forEach(element => {
-            if (change.type === 'hide') {
-              element.style.display = 'none';
-            } else if (change.type === 'show') {
-              element.style.display = '';
-            } else if (change.type === 'modify' && change.value) {
-              element.style[change.selector] = change.value;
-            }
+        init: function () {
+          console.log('Inicializando SDK con config:', {
+            apiKey: this.apiKey,
+            supabaseUrl: this.supabaseUrl,
+            supabaseKey: this.supabaseKey
           });
-        });
-      }
-    },
 
-    // Obtener variante para un experimento
-    getVariant: function (experiment) {
-      if (!experiment || !experiment.variants || !Array.isArray(experiment.variants)) {
-        return null;
-      }
+          // Ocultar la página inicialmente
+          document.body.style.opacity = '0';
 
-      const hash = this.hashString(this.visitorId + experiment.id);
-      const totalWeight = experiment.variants.reduce((sum, v) => sum + v.traffic, 0);
-      let weightSum = 0;
+          // Cargar experimentos
+          this.loadExperiments();
+        },
 
-      for (const variant of experiment.variants) {
-        weightSum += variant.traffic;
-        if (hash % totalWeight < weightSum) {
-          return variant;
-        }
-      }
+        // Cargar experimentos activos
+        loadExperiments: async function () {
+          console.log('Cargando experimentos...');
+          try {
+            const response = await fetch(
+              this.supabaseUrl + '/rest/v1/experiments?select=*&status=eq.running',
+              {
+                headers: {
+                  'apikey': this.supabaseKey,
+                  'Authorization': 'Bearer ' + this.supabaseKey
+                }
+              }
+            );
 
-      return experiment.variants[0];
-    },
+            console.log('Respuesta de experimentos:', response);
 
-    // Rastrear eventos
-    track: async function (eventName, properties = {}) {
-      const event = {
-        name: eventName,
-        properties: {
-          ...properties,
-          visitorId: this.visitorId,
-          userId: this.apiKey,
-          timestamp: new Date().toISOString(),
-          url: window.location.href
+            if (!response.ok) {
+              throw new Error('Error en la respuesta de la API');
+            }
+
+            const data = await response.json();
+            console.log('Datos de experimentos:', data);
+
+            if (!Array.isArray(data)) {
+              console.warn('No se encontraron experimentos activos');
+              window.testabShow();
+              return;
+            }
+
+            // Mapear los campos de snake_case a camelCase
+            const experiments = data.map(exp => ({
+              ...exp,
+              targetUrl: exp.target_url,
+              trafficAllocation: exp.traffic_allocation,
+              variants: exp.variants || []
+            }));
+
+            // Guardar experimentos
+            this.experiments = experiments;
+
+            // Aplicar cada experimento
+            experiments.forEach(experiment => {
+              if (this.shouldApplyExperiment(experiment)) {
+                this.applyExperiment(experiment);
+              }
+            });
+
+            window.testabShow();
+          } catch (error) {
+            console.error('Error cargando experimentos:', error);
+            window.testabShow();
+          }
+        },
+
+        // Verificar si el experimento debe aplicarse
+        shouldApplyExperiment: function (experiment) {
+          if (!experiment) return false;
+
+          // Verificar URL
+          if (experiment.targetUrl && !window.location.href.includes(experiment.targetUrl)) {
+            return false;
+          }
+
+          // Verificar asignación de tráfico
+          if (Math.random() * 100 > experiment.trafficAllocation) {
+            return false;
+          }
+
+          return true;
+        },
+
+        // Aplicar un experimento
+        applyExperiment: function (experiment) {
+          if (!experiment || !experiment.variants) return;
+
+          const variant = this.getVariant(experiment);
+
+          if (variant && variant.changes) {
+            variant.changes.forEach(change => {
+              const elements = document.querySelectorAll(change.selector);
+              elements.forEach(element => {
+                if (change.type === 'hide') {
+                  element.style.display = 'none';
+                } else if (change.type === 'show') {
+                  element.style.display = '';
+                } else if (change.type === 'modify' && change.value) {
+                  element.style[change.selector] = change.value;
+                }
+              });
+            });
+          }
+        },
+
+        // Obtener variante para un experimento
+        getVariant: function (experiment) {
+          if (!experiment || !experiment.variants || !Array.isArray(experiment.variants)) {
+            return null;
+          }
+
+          const hash = this.hashString(this.visitorId + experiment.id);
+          const totalWeight = experiment.variants.reduce((sum, v) => sum + v.traffic, 0);
+          let weightSum = 0;
+
+          for (const variant of experiment.variants) {
+            weightSum += variant.traffic;
+            if (hash % totalWeight < weightSum) {
+              return variant;
+            }
+          }
+
+          return experiment.variants[0];
+        },
+
+        // Rastrear eventos
+        track: async function (eventName, properties = {}) {
+          const event = {
+            name: eventName,
+            properties: {
+              ...properties,
+              visitorId: this.visitorId,
+              userId: this.apiKey,
+              timestamp: new Date().toISOString(),
+              url: window.location.href
+            }
+          };
+
+          if (this.debug) {
+            console.log('Evento registrado:', event);
+          }
+
+          try {
+            const response = await fetch(this.supabaseUrl + '/rest/v1/events', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': this.supabaseKey,
+                'Authorization': 'Bearer ' + this.supabaseKey
+              },
+              body: JSON.stringify(event)
+            });
+
+            if (!response.ok) {
+              throw new Error('Error al guardar el evento');
+            }
+          } catch (error) {
+            console.error('Error guardando evento:', error);
+          }
+        },
+
+        // Función auxiliar para hash
+        hashString: function (str) {
+          let hash = 0;
+          for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+          }
+          return Math.abs(hash);
         }
       };
 
-      if (this.debug) {
-        console.log('Evento registrado:', event);
-      }
+      // Inicializar SDK
+      window.TestAB.init();
 
-      try {
-        const response = await fetch(this.supabaseUrl + '/rest/v1/events', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': this.supabaseKey,
-            'Authorization': 'Bearer ' + this.supabaseKey
-          },
-          body: JSON.stringify(event)
-        });
-
-        if (!response.ok) {
-          throw new Error('Error al guardar el evento');
-        }
-      } catch (error) {
-        console.error('Error guardando evento:', error);
-      }
-    },
-
-    // Función auxiliar para hash
-    hashString: function (str) {
-      let hash = 0;
-      for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-      }
-      return Math.abs(hash);
-    }
-  };
-
-  // Inicializar el SDK
-  TestAB.init({
-    apiKey: '571acf10-e61f-4d86-98ec-1bc79740aec0'
-  });
-</script>
+    </script>
 
 
 
