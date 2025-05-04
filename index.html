@@ -101,7 +101,7 @@
         // Cargar experimentos activos
         loadExperiments: async function () {
           try {
-            const { data: experiments, error } = await fetch(
+            const response = await fetch(
               this.supabaseUrl + '/rest/v1/experiments?select=*&status=eq.active',
               {
                 headers: {
@@ -109,9 +109,23 @@
                   'Authorization': 'Bearer ' + this.supabaseKey
                 }
               }
-            ).then(res => res.json());
+            );
 
-            if (error) throw error;
+            if (!response.ok) {
+              throw new Error('Error en la respuesta de la API');
+            }
+
+            const { data: experiments, error } = await response.json();
+
+            if (error) {
+              throw error;
+            }
+
+            if (!Array.isArray(experiments)) {
+              console.warn('No se encontraron experimentos activos');
+              window.testabShow();
+              return;
+            }
 
             // Aplicar cada experimento
             experiments.forEach(experiment => {
@@ -129,6 +143,8 @@
 
         // Verificar si el experimento debe aplicarse
         shouldApplyExperiment: function (experiment) {
+          if (!experiment) return false;
+
           // Verificar URL
           if (experiment.target_url && !window.location.href.includes(experiment.target_url)) {
             return false;
@@ -144,6 +160,8 @@
 
         // Aplicar un experimento
         applyExperiment: function (experiment) {
+          if (!experiment || !experiment.variants) return;
+
           const variant = this.getVariant(experiment);
 
           if (variant && variant.changes) {
@@ -160,6 +178,10 @@
 
         // Obtener variante para un experimento
         getVariant: function (experiment) {
+          if (!experiment || !experiment.variants || !Array.isArray(experiment.variants)) {
+            return null;
+          }
+
           const hash = this.hashString(this.visitorId + experiment.id);
           const totalWeight = experiment.variants.reduce((sum, v) => sum + v.weight, 0);
           let weightSum = 0;
@@ -192,7 +214,7 @@
           }
 
           try {
-            await fetch(this.supabaseUrl + '/rest/v1/events', {
+            const response = await fetch(this.supabaseUrl + '/rest/v1/events', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -201,6 +223,10 @@
               },
               body: JSON.stringify(event)
             });
+
+            if (!response.ok) {
+              throw new Error('Error al guardar el evento');
+            }
           } catch (error) {
             console.error('Error guardando evento:', error);
           }
@@ -223,6 +249,7 @@
         apiKey: '571acf10-e61f-4d86-98ec-1bc79740aec0'
       });
     </script>
+
 
 
   </head>
