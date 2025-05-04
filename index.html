@@ -64,19 +64,14 @@
     </style>
     <script src="testab-sdk.js"></script>
     <script>
-      // Inicializar el SDK con los datos del usuario
-      TestAB.init('571acf10-e61f-4d86-98ec-1bc79740aec0', {
-        debug: true,
-        user: {
-          username: 'kazukitopes',
-          email: 'joan.tomas.miralles@gmail.com',
-          fullName: 'Joan Tomas Miralles',
-          website: 'https://joan-tomas-1995.github.io/testAB/'
-        }
-      });
+      (function (w, d, s, o, f, js, fjs) {
+        w['TestAB'] = o; w[o] = w[o] || function () { (w[o].q = w[o].q || []).push(arguments) };
+        w[o].l = 1 * new Date(); js = d.createElement(s); fjs = d.getElementsByTagName(s)[0];
+        js.async = 1; js.src = f; js.id = o; fjs.parentNode.insertBefore(js, fjs);
+      }(window, document, 'script', 'testab', 'https://cdn.testab.app/testab.min.js'));
 
-      // Registrar vista de página
-      TestAB.pageview();
+      testab('init', '571acf10-e61f-4d86-98ec-1bc79740aec0');
+      testab('pageview');
     </script>
   </head>
 
