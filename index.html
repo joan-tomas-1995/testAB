@@ -63,31 +63,7 @@
       }
     </style>
 
-
-
     <script>
-      // Ocultar la página inicialmente
-      !function () {
-        var style = document.createElement('style');
-        style.type = 'text/css';
-        style.id = 'testab-hide-style';
-        style.innerHTML = 'body {opacity: 0 !important;}';
-        document.head.appendChild(style);
-
-        // Función para mostrar la página
-        window.testabShow = function () {
-          var style = document.getElementById('testab-hide-style');
-          if (style) {
-            style.parentNode.removeChild(style);
-            document.body.style.opacity = '';
-          }
-        };
-
-        // Mostrar la página después de 2 segundos como máximo
-        setTimeout(window.testabShow, 2000);
-      }();
-
-      // SDK simplificado
       window.TestAB = {
         experiments: [],
         visitorId: '571acf10-e61f-4d86-98ec-1bc79740aec0',
@@ -103,8 +79,24 @@
             supabaseKey: this.supabaseKey
           });
 
-          // Cargar experimentos
-          this.loadExperiments();
+          // Ocultar la página inicialmente
+          document.documentElement.style.opacity = '0';
+
+          // Cargar experimentos y luego mostrar la página
+          this.loadExperiments().then(() => {
+            document.documentElement.style.opacity = '1';
+          }).catch(() => {
+            document.documentElement.style.opacity = '1';
+          });
+
+          // Registrar vista de página automáticamente
+          this.track('pageview', {
+            url: window.location.href,
+            title: document.title
+          });
+
+          // Configurar seguimiento automático de clics
+          this.setupClickTracking();
         },
 
         loadExperiments: async function () {
@@ -120,8 +112,6 @@
               }
             );
 
-            console.log('Respuesta de experimentos:', response);
-
             if (!response.ok) {
               throw new Error('Error en la respuesta de la API');
             }
@@ -131,48 +121,42 @@
 
             if (!Array.isArray(data)) {
               console.warn('No se encontraron experimentos activos');
-              window.testabShow();
               return;
             }
 
-            // Mapear los campos de snake_case a camelCase
-            const experiments = data.map(exp => ({
+            this.experiments = data.map(exp => ({
               ...exp,
               targetUrl: exp.target_url,
               trafficAllocation: exp.traffic_allocation,
               variants: exp.variants || []
             }));
 
-            // Guardar experimentos
-            this.experiments = experiments;
-
-            // Aplicar cada experimento
-            experiments.forEach(experiment => {
+            this.experiments.forEach(experiment => {
               if (this.shouldApplyExperiment(experiment)) {
                 this.applyExperiment(experiment);
               }
             });
-
-            window.testabShow();
           } catch (error) {
             console.error('Error cargando experimentos:', error);
-            window.testabShow();
           }
         },
 
         shouldApplyExperiment: function (experiment) {
           if (!experiment) return false;
 
-          // Verificar URL
+          // Verificar si la URL actual coincide con la URL objetivo
           if (experiment.targetUrl && !window.location.href.includes(experiment.targetUrl)) {
+            console.log('URL no coincide:', experiment.targetUrl, window.location.href);
             return false;
           }
 
-          // Verificar asignación de tráfico
+          // Aplicar asignación de tráfico
           if (Math.random() * 100 > experiment.trafficAllocation) {
+            console.log('Usuario no asignado debido a la asignación de tráfico:', experiment.trafficAllocation);
             return false;
           }
 
+          console.log('Experimento aplicable:', experiment.name);
           return true;
         },
 
@@ -180,6 +164,18 @@
           if (!experiment || !experiment.variants) return;
 
           const variant = this.getVariant(experiment);
+          console.log('Variante seleccionada:', variant?.name, 'para experimento:', experiment.name);
+
+          this.currentExperiment = experiment;
+          this.currentVariant = variant;
+
+          // Registrar asignación a variante
+          this.track('experiment_view', {
+            experimentId: experiment.id,
+            experimentName: experiment.name,
+            variantId: variant?.id,
+            variantName: variant?.name
+          });
 
           if (variant && variant.changes) {
             variant.changes.forEach(change => {
@@ -189,16 +185,57 @@
                   element.style.display = 'none';
                 } else if (change.type === 'show') {
                   element.style.display = '';
-                } else if (change.type === 'modify' && change.value) {
-                  element.style[change.selector] = change.value;
+                } else if (change.type === 'modify' && change.property && change.value) {
+                  element.style[change.property] = change.value;
+                } else if (change.type === 'html' && change.value) {
+                  element.innerHTML = change.value;
+                } else if (change.type === 'addClass' && change.value) {
+                  element.classList.add(change.value);
+                } else if (change.type === 'removeClass' && change.value) {
+                  element.classList.remove(change.value);
                 }
               });
             });
           }
         },
 
+        setupClickTracking: function () {
+          document.addEventListener('click', (event) => {
+            const element = event.target;
+
+            // Solo rastrear elementos con ID o con atributo data-testab-track
+            if (element.id || element.getAttribute('data-testab-track')) {
+              let elementInfo = {
+                tag: element.tagName.toLowerCase(),
+                id: element.id || null,
+                classes: element.className || null,
+                text: element.textContent?.trim() || null
+              };
+
+              this.track('click', {
+                elementInfo,
+                experimentId: this.currentExperiment?.id,
+                variantId: this.currentVariant?.id
+              });
+
+              // Si el elemento es un botón o tiene clase que sugiere conversión
+              if (element.tagName === 'BUTTON' ||
+                element.classList.contains('buy') ||
+                element.classList.contains('comprar') ||
+                element.textContent?.toLowerCase().includes('comprar')) {
+
+                this.track('conversion', {
+                  elementInfo,
+                  experimentId: this.currentExperiment?.id,
+                  variantId: this.currentVariant?.id
+                });
+              }
+            }
+          });
+        },
+
         getVariant: function (experiment) {
-          if (!experiment || !experiment.variants || !Array.isArray(experiment.variants)) {
+          if (!experiment || !experiment.variants || !Array.isArray(experiment.variants) || experiment.variants.length === 0) {
             return null;
           }
 
@@ -224,7 +261,9 @@
               visitorId: this.visitorId,
               userId: this.apiKey,
               timestamp: new Date().toISOString(),
-              url: window.location.href
+              url: window.location.href,
+              experimentId: properties.experimentId || this.currentExperiment?.id,
+              variantId: properties.variantId || this.currentVariant?.id
             }
           };
 
@@ -233,21 +272,76 @@
           }
 
           try {
-            const response = await fetch(this.supabaseUrl + '/rest/v1/events', {
+            const response = await fetch(this.supabaseUrl + '/rest/v1/rpc/track_event', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'apikey': this.supabaseKey,
                 'Authorization': 'Bearer ' + this.supabaseKey
               },
-              body: JSON.stringify(event)
+              body: JSON.stringify({
+                event_name: eventName,
+                event_properties: event.properties,
+                visitor_id: this.visitorId,
+                experiment_id: properties.experimentId || this.currentExperiment?.id,
+                variant_id: properties.variantId || this.currentVariant?.id
+              })
             });
 
             if (!response.ok) {
               throw new Error('Error al guardar el evento');
             }
+
+            this.updateStatistics(event);
           } catch (error) {
             console.error('Error guardando evento:', error);
+
+            // Guardar en localStorage como fallback
+            const events = JSON.parse(localStorage.getItem('testab_events') || '[]');
+            events.push(event);
+            localStorage.setItem('testab_events', JSON.stringify(events));
+          }
+        },
+
+        updateStatistics: function (event) {
+          if (!event.properties.experimentId || !event.properties.variantId) return;
+
+          const experiment = this.experiments.find(e => e.id === event.properties.experimentId);
+          if (!experiment) return;
+
+          const variant = experiment.variants.find(v => v.id === event.properties.variantId);
+          if (!variant) return;
+
+          variant.visitors = (variant.visitors || 0) + 1;
+
+          if (event.name === 'conversion') {
+            variant.conversions = (variant.conversions || 0) + 1;
+          }
+
+          variant.conversionRate = variant.visitors > 0
+            ? (variant.conversions / variant.visitors) * 100
+            : 0;
+
+          this.updateStatisticsUI(experiment);
+        },
+
+        updateStatisticsUI: function (experiment) {
+          const statsContainer = document.getElementById('experiment-stats');
+          if (!statsContainer) return;
+
+          let statsHtml = '';
+
+          experiment.variants.forEach((variant) => {
+            statsHtml += '<div class="variant-stats">';
+            statsHtml += '<h3>' + variant.name + '</h3>';
+            statsHtml += '<p>Visitantes: ' + (variant.visitors || 0) + '</p>';
+            statsHtml += '<p>Conversiones: ' + (variant.conversions || 0) + '</p>';
+            statsHtml += '<p>Tasa de conversión: ' + (variant.conversionRate?.toFixed(2) || '0.00') + '%</p>';
+            statsHtml += '</div>';
+          });
+
+          if (statsContainer) {
+            statsContainer.innerHTML = statsHtml;
           }
         },
 
@@ -262,9 +356,9 @@
         }
       };
 
-      // Inicializar SDK
       window.TestAB.init();
     </script>
+
 
 
 
