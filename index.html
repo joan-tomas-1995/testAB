@@ -63,20 +63,20 @@
       }
     </style>
 
+
     <script>
       window.TestAB = {
         experiments: [],
-        visitorId: '571acf10-e61f-4d86-98ec-1bc79740aec0',
         debug: true,
-        supabaseUrl: 'https://aynriqgxrddbxrwlxqlu.supabase.co',
-        supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5bnJpcWd4cmRkYnhyd2x4cWx1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTM1OTAsImV4cCI6MjA2MTYyOTU5MH0.PiWqRIsART84mavWoG944qfb82JEyXbAFN2huR-sK40',
-        apiKey: '571acf10-e61f-4d86-98ec-1bc79740aec0',
+        apiKey: '571acf10-e61f-4d86-98ec-1bc79740aec0', // ID de conexión con nuestra plataforma
 
         init: function () {
-          console.log('Inicializando SDK con config:', {
+          // Generar o recuperar el ID único del visitante
+          this.visitorId = this.getVisitorId();
+
+          console.log('Inicializando TestAB SDK:', {
             apiKey: this.apiKey,
-            supabaseUrl: this.supabaseUrl,
-            supabaseKey: this.supabaseKey
+            visitorId: this.visitorId
           });
 
           // Ocultar la página inicialmente
@@ -99,15 +99,51 @@
           this.setupClickTracking();
         },
 
+        // Generar o recuperar ID único de visitante
+        getVisitorId: function () {
+          // Intentar recuperar de una cookie existente
+          const cookieName = 'testab_visitor_id';
+          const existingId = this.getCookie(cookieName);
+
+          if (existingId) {
+            return existingId;
+          }
+
+          // Generar un nuevo ID único
+          const newId = 'v_' + Math.random().toString(36).substring(2, 15) +
+            Math.random().toString(36).substring(2, 15) +
+            '_' + new Date().getTime();
+
+          // Guardar en cookie (30 días)
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 30);
+          document.cookie = cookieName + '=' + newId + '; expires=' + expiryDate.toUTCString() + '; path=/; SameSite=Lax';
+
+          return newId;
+        },
+
+        // Obtener valor de cookie
+        getCookie: function (name) {
+          const nameEQ = name + '=';
+          const ca = document.cookie.split(';');
+          for (let i = 0; i < ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+            if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+          }
+          return null;
+        },
+
         loadExperiments: async function () {
           console.log('Cargando experimentos...');
           try {
+            // Hacer petición a nuestro proxy para evitar exponer credenciales
             const response = await fetch(
-              this.supabaseUrl + '/rest/v1/experiments?select=*&status=eq.running',
+              'https://aynriqgxrddbxrwlxqlu.supabase.co/functions/v1/get-experiments?apiKey=' + this.apiKey,
               {
+                method: 'GET',
                 headers: {
-                  'apikey': this.supabaseKey,
-                  'Authorization': 'Bearer ' + this.supabaseKey
+                  'Content-Type': 'application/json'
                 }
               }
             );
@@ -117,7 +153,7 @@
             }
 
             const data = await response.json();
-            console.log('Datos de experimentos:', data);
+            console.log('Experimentos activos encontrados:', data.length);
 
             if (!Array.isArray(data)) {
               console.warn('No se encontraron experimentos activos');
@@ -131,7 +167,16 @@
               variants: exp.variants || []
             }));
 
+            // Inicializar contadores para variantes
             this.experiments.forEach(experiment => {
+              if (experiment.variants) {
+                experiment.variants.forEach(variant => {
+                  variant.visitors = variant.visitors || 0;
+                  variant.conversions = variant.conversions || 0;
+                  variant.conversionRate = variant.conversionRate || 0;
+                });
+              }
+
               if (this.shouldApplyExperiment(experiment)) {
                 this.applyExperiment(experiment);
               }
@@ -150,6 +195,13 @@
             return false;
           }
 
+          // Comprobar si el usuario ya está asignado a una variante de este experimento
+          const experimentCookie = this.getCookie('testab_exp_' + experiment.id);
+          if (experimentCookie) {
+            console.log('Usuario ya asignado a variante:', experimentCookie, 'para experimento:', experiment.name);
+            return true;
+          }
+
           // Aplicar asignación de tráfico
           if (Math.random() * 100 > experiment.trafficAllocation) {
             console.log('Usuario no asignado debido a la asignación de tráfico:', experiment.trafficAllocation);
@@ -163,8 +215,32 @@
         applyExperiment: function (experiment) {
           if (!experiment || !experiment.variants) return;
 
-          const variant = this.getVariant(experiment);
-          console.log('Variante seleccionada:', variant?.name, 'para experimento:', experiment.name);
+          // Comprobar si el usuario ya está asignado a una variante
+          const experimentCookie = this.getCookie('testab_exp_' + experiment.id);
+          let variant = null;
+
+          if (experimentCookie) {
+            // Usar la variante previamente asignada
+            variant = experiment.variants.find(v => v.id === experimentCookie);
+            if (!variant && experiment.variants.length > 0) {
+              variant = experiment.variants[0]; // Fallback a la primera variante
+            }
+          } else {
+            // Asignar una nueva variante
+            variant = this.getVariant(experiment);
+
+            // Guardar la asignación en cookie (7 días)
+            if (variant) {
+              const expiryDate = new Date();
+              expiryDate.setDate(expiryDate.getDate() + 7);
+              document.cookie = 'testab_exp_' + experiment.id + '=' + variant.id +
+                '; expires=' + expiryDate.toUTCString() + '; path=/; SameSite=Lax';
+            }
+          }
+
+          if (!variant) return;
+
+          console.log('Variante seleccionada:', variant.name, 'para experimento:', experiment.name);
 
           this.currentExperiment = experiment;
           this.currentVariant = variant;
@@ -173,8 +249,8 @@
           this.track('experiment_view', {
             experimentId: experiment.id,
             experimentName: experiment.name,
-            variantId: variant?.id,
-            variantName: variant?.name
+            variantId: variant.id,
+            variantName: variant.name
           });
 
           if (variant && variant.changes) {
@@ -272,14 +348,14 @@
           }
 
           try {
-            const response = await fetch(this.supabaseUrl + '/rest/v1/rpc/track_event', {
+            // Usar nuestra función serverless segura para registrar eventos
+            const response = await fetch('https://aynriqgxrddbxrwlxqlu.supabase.co/functions/v1/track-event', {
               method: 'POST',
               headers: {
-                'Content-Type': 'application/json',
-                'apikey': this.supabaseKey,
-                'Authorization': 'Bearer ' + this.supabaseKey
+                'Content-Type': 'application/json'
               },
               body: JSON.stringify({
+                apiKey: this.apiKey,
                 event_name: eventName,
                 event_properties: event.properties,
                 visitor_id: this.visitorId,
@@ -358,8 +434,6 @@
 
       window.TestAB.init();
     </script>
-
-
 
 
 
